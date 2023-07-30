@@ -58,7 +58,7 @@ fn print_type_of<T>(_: &T) {
 }
 
 lazy_static! {
-    static ref guild_data : Mutex<JsonValue> = Mutex::new(object!{});
+    static ref GUILD_DATA : Mutex<JsonValue> = Mutex::new(object!{});
 }
 
 #[command]
@@ -70,9 +70,9 @@ pub async fn repeat(ctx: &Context, msg: &Message, mut args: Args) -> CommandResu
     }
 
     let guild = msg.guild(&ctx.cache).unwrap();
-    guild_data.lock().await[guild.id.as_u64().to_string()] = mode.into();
+    GUILD_DATA.lock().await[guild.id.as_u64().to_string()] = mode.into();
 
-    msg.reply_ping(ctx, format!("{}", guild_data.lock().await.pretty(2))).await?;
+    msg.reply_ping(ctx, format!("{}", GUILD_DATA.lock().await.pretty(2))).await?;
     
     Ok(())
 }
@@ -83,7 +83,7 @@ pub async fn select_song(ctx: &Context, msg: &Message, mut url: std::string::Str
         let ytdl_output = match out {
             Ok(s) => s,
             Err(_e) => {
-                msg.reply_ping(ctx, "loi roi??").await;
+                msg.reply_ping(ctx, "loi roi??").await.ok()?;
                 return None;
             }
         };
@@ -115,7 +115,7 @@ pub async fn select_song(ctx: &Context, msg: &Message, mut url: std::string::Str
             m.content("").reference_message(msg).embed(
                 |e| e.title("chon bai bang cach go so").description(choose_msg)
             )
-        }).await;
+        }).await.ok()?;
 
         let channel_id = msg.channel_id;
         let user_reply = channel_id
@@ -128,7 +128,7 @@ pub async fn select_song(ctx: &Context, msg: &Message, mut url: std::string::Str
         let index_str = match user_reply {
             Some(song) => song,
             None => {
-                msg.reply_ping(ctx, "timed out ?? go nhanh len").await;
+                msg.reply_ping(ctx, "timed out ?? go nhanh len").await.ok()?;
                 return None;
             }
         }; 
@@ -136,13 +136,13 @@ pub async fn select_song(ctx: &Context, msg: &Message, mut url: std::string::Str
         let index = match index_str.content.parse::<i32>() {
             Ok(i) => i,
             Err(_e) => {
-                index_str.reply_ping(ctx, "ok??").await;
+                index_str.reply_ping(ctx, "ok??").await.ok()?;
                 return None;
             }
         };
 
         if index <= 0 || index > (url.len() as i32) {
-            index_str.reply_ping(ctx, "hoc dem pls").await;
+            index_str.reply_ping(ctx, "hoc dem pls").await.ok()?;
             return None;
         }
 
@@ -153,7 +153,7 @@ pub async fn select_song(ctx: &Context, msg: &Message, mut url: std::string::Str
         Ok(source) => source,
         Err(why) => {
             println!("Error: {:?}", why);
-            msg.reply_ping(ctx, "loi roi").await;
+            msg.reply_ping(ctx, "loi roi").await.ok()?;
             return None;
         }
     };
@@ -171,7 +171,7 @@ pub async fn join_channel(ctx: &Context, msg: &Message) -> Option<Arc<Mutex<Call
         let to_connect = match channel_id {
             Some(channel) => channel,
             None => {
-                msg.reply_ping(ctx, "chua vao voice?").await;
+                msg.reply_ping(ctx, "chua vao voice?").await.ok()?;
 
                 return None;
             }
@@ -180,7 +180,7 @@ pub async fn join_channel(ctx: &Context, msg: &Message) -> Option<Arc<Mutex<Call
         let (handler_lock, success) = manager.join(guild_id, to_connect).await; // who ask
 
         if let Ok(_channel) = success {
-            msg.reply_ping(ctx, "da vao voice").await;
+            msg.reply_ping(ctx, "da vao voice").await.ok()?;
 
             return Some(handler_lock);
         }
@@ -192,7 +192,7 @@ pub async fn join_channel(ctx: &Context, msg: &Message) -> Option<Arc<Mutex<Call
         let handler_lock = match manager.get(guild_id) {
             Some(handler_lock) => handler_lock,
             None => {
-                msg.reply_ping(ctx, "ko vao duoc voice sob").await;
+                msg.reply_ping(ctx, "ko vao duoc voice sob").await.ok()?;
                 return None;
             }
         };
@@ -322,7 +322,7 @@ pub async fn play(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult
 impl VoiceEventHandler for SongEndNotifier {
     async fn act(&self, _ctx: &EventContext<'_>) -> Option<Event> {
         let guild = self.msg.guild(&self.ctx.cache).unwrap();
-        let data = &guild_data.lock().await[guild.id.as_u64().to_string()];
+        let data = &GUILD_DATA.lock().await[guild.id.as_u64().to_string()];
 
         if data.is_null() || data == "off" {
             return None;
@@ -377,7 +377,7 @@ struct SongEndNotifier {
 pub async fn queue(ctx: &Context, msg: &Message) -> CommandResult {
     let guild = msg.guild(&ctx.cache).unwrap();
     let guild_id = guild.id;
-    let data = &guild_data.lock().await[guild.id.as_u64().to_string()];
+    let data = &GUILD_DATA.lock().await[guild.id.as_u64().to_string()];
 
     let manager = songbird::serenity::get(ctx).await.expect("Placed at init").clone();
 
@@ -700,7 +700,7 @@ pub async fn tts(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult 
     match download {
         Ok(_s) => _s,
         Err(_e) => {
-            msg.reply_ping(ctx, "LOI ROI BRO??").await;
+            msg.reply_ping(ctx, "LOI ROI BRO??").await?;
             return Ok(());
         }
     };

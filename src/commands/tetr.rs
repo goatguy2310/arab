@@ -18,6 +18,15 @@ use tetr_ch::model::{
     league::Rank,
     stream::StreamResponse};
 
+use futures_util::{
+    future::{join_all, ready, FutureExt},
+    stream::{FuturesUnordered, StreamExt},
+};
+
+use sqlx::types::chrono::Utc;
+
+use crate::db::tetr_user::{TetrSavedUsers, TetrUser};
+
 static TETR_API_BASE: &str = "https://ch.tetr.io/api/";
 static JSTRIS_API_BASE: &str = "https://jstris.jezevec10.com/api/";
 
@@ -306,5 +315,90 @@ pub async fn leaguerecent(ctx: &Context, msg: &Message, mut args: Args) -> Comma
         |m| {
             m.content(leaguers_message(ur.clone(), sr, usn.to_string()))
         }).await?;
+    Ok(())
+}
+
+#[command]
+pub async fn save(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
+    let data = ctx.data.read().await;
+    let tetr_users = data.get::<TetrSavedUsers>().unwrap();
+
+    let targ = args.single::<serenity::model::id::UserId>().unwrap();
+
+    let usn = args.quoted().trimmed().single::<String>().unwrap();
+    let ur = Client::new().get_user(&usn).await.unwrap();
+    let urrec = Client::new().get_user_records(&usn).await.unwrap();
+
+    let u = &ur.data.as_ref().unwrap().user;
+    let mut sprint = None;
+    if urrec.has_40l_record() {
+        sprint = Some(urrec.data.as_ref().unwrap().records.forty_lines.record.as_ref().unwrap().endcontext.clone().single_play().as_ref().unwrap().final_time.unwrap() / 1000.);
+    }
+
+    let mut blitz = None;
+    if urrec.has_blitz_record() {
+        let blitz_score = urrec.data.as_ref().unwrap().records.blitz.record.as_ref().unwrap().endcontext.clone().single_play().as_ref().unwrap().score;
+        blitz = Some(blitz_score.unwrap() as f64);
+    }
+    let tu = TetrUser::new(
+        targ.0 as i64,
+        u.id.0.clone(),
+        Utc::now(),
+        u.league.rating,
+        u.league.rank.as_str().to_string(),
+        u.league.apm,
+        u.league.pps,
+        u.league.vs,
+        sprint,
+        blitz,
+    );
+
+    tetr_users.save(&tu).await?;
+    msg.channel_id.say(&ctx, format!("User saved as {}", usn)).await?;
+    Ok(())
+}
+
+#[command]
+#[max_args(1)]
+pub async fn lb(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
+    let data = ctx.data.read().await;
+    let tetr_users = data.get::<TetrSavedUsers>().unwrap();
+
+    let mut mode = args.rest();
+    if !["apm", "pps", "vs", "app", "40l", "sprint", "blitz"].contains(&mode) {
+        mode = "tr";
+    }
+    let mut users = tetr_users
+        .all()
+        .await?
+        .iter()
+        .filter(|u| u.get_stat(mode).is_some())
+        .map(|u| async move{
+            msg
+                .guild_id
+                .expect("Guild-only command")
+                .member(&ctx, UserId(u.user_id as u64))
+                .await
+                .ok()
+                .and_then(|m|
+                    Some((m.distinct(), u.get_stat(mode), u.rank.clone()))
+                )
+        })
+        .collect::<FuturesUnordered<_>>()
+        .filter_map(ready)
+        .collect::<Vec<_>>()
+        .await;
+
+    users.sort_by(|a, b| (*b).1.partial_cmp(&a.1).unwrap());
+    if mode == "40l" || mode == "sprint" { users.reverse(); }
+
+    let mut res = String::from(format!("```No | Name | {} | TL Rank\n", mode.to_uppercase()));
+    for (i, u) in users.iter().enumerate() {
+        if mode != "blitz" { res += format!("{} | {} | {:.3} | {}\n", i + 1, u.0, u.1.unwrap(), u.2).as_str(); }
+        else { res += format!("{} | {} | {} | {}\n", i + 1, u.0, u.1.unwrap(), u.2).as_str(); }
+    }
+    res += "```";
+    msg.channel_id.say(&ctx, res).await?;
+
     Ok(())
 }

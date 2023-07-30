@@ -1,4 +1,5 @@
 mod commands;
+mod db;
 
 use std::env;
 
@@ -11,12 +12,17 @@ use serenity::framework::standard::macros::{command, group};
 use serenity::framework::standard::{StandardFramework, CommandResult};
 use serenity::prelude::*;
 
+use sqlx::{sqlite::SqlitePoolOptions, SqlitePool, query, query_as};
+
+
 use crate::commands::tetr::*;
 use crate::commands::voice::*;
 use crate::commands::misc::*;
 
+use crate::db::tetr_user::*;
+
 #[group]
-#[commands(join, leave, play, queue, current, skip, remove, pause, resume, cothenoi, help, pleasedont, replace, ping, repeat, test, tts, profile, profile40l, profileblitz, leaguerecent)]
+#[commands(join, leave, play, queue, current, skip, remove, pause, resume, cothenoi, help, pleasedont, replace, ping, repeat, test, tts, profile, profile40l, profileblitz, leaguerecent, save, lb)]
 pub struct General;
 
 struct Handler;
@@ -28,6 +34,11 @@ impl EventHandler for Handler {
     // }
 }
 
+struct SQLClient;
+
+impl TypeMapKey for SQLClient {
+    type Value = SqlitePool;
+}
 
 #[tokio::main]
 async fn main() {
@@ -64,6 +75,33 @@ async fn main() {
         .register_songbird()
         .await
         .expect("Error creating client");
+
+
+    let db_path = "arab.sqlite";
+
+    let db = SqlitePoolOptions::new()
+        .max_connections(5)
+        .connect(db_path)
+        .await
+        .expect("Failed to connect to database");
+
+    sqlx::migrate!("./migrations")
+        .run(&db)
+        .await
+        .expect("Failed to run migrations");
+
+    {
+        let mut data = client.data.write().await;
+        data.insert::<SQLClient>(db.clone());
+        data.insert::<TetrSavedUsers>(TetrSavedUsers::new(db.clone()));
+    }
+
+    // let u = query!(
+    //     "SELECT
+    //         *
+    //     FROM tetr_users")
+    //     .fetch_all(&db)
+    //     .await;
 
     if let Err(why) = client.start().await {
         println!("An error occurred while running the client: {:?}", why);

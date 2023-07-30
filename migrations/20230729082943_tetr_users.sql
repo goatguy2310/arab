@@ -1,10 +1,11 @@
 -- Add migration script here
 
-CREATE TABLE osu_users (
+CREATE TABLE tetr_users (
     user_id     BIGINT   NOT NULL PRIMARY KEY,
-    id          BIGINT   NOT NULL UNIQUE,
+    id          TEXT     NOT NULL UNIQUE,
     last_update DATETIME NOT NULL,
-    tr          REAL     NULL,
+    tr          REAL     NOT NULL,
+    rank        TEXT     NOT NULL,
     apm         REAL     NULL,
     pps         REAL     NULL,
     vs          REAL     NULL,

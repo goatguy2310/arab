@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-sqlx = { version = "0.6", features = ["runtime-tokio-rustls", "sqlite", "chrono", "offline"] }
+sqlx = { version = "0.6", features = ["runtime-tokio-rustls", "sqlite", "chrono", "offline", "macros"] }
 serenity = { version = "0.11", features = ["client", "cache", "framework", "standard_framework", "voice", "builder", "model", "collector"] }
 tokio = { version = "1.21.2", features = ["macros", "rt-multi-thread"] }
 songbird = { version = "0.3.0", features = ["builtin-queue", "yt-dlp"] }
@@ -18,3 +18,5 @@ tetr_ch = "0.4.0"
 async-process = "1.6.0"
 tts_rust = "0.3.5"
 urlencoding = "2.1.2"
+dotenv = "0.15.0"
+futures-util = "0.3.21"
