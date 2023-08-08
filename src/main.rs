@@ -67,7 +67,7 @@ async fn main() {
         .configure(|c| c.prefix("~"))
         .group(&GENERAL_GROUP);
 
-    let token = "ODk3NjY1NTE2MTMzNTQ4MDQz.YWY-KA.KYoLYWH_VIUaQnYOPUrwjlpgZ5s";
+    let token = "";
     let intents = GatewayIntents::non_privileged() | GatewayIntents::MESSAGE_CONTENT;
     let mut client = Client::builder(token, intents)
         .event_handler(Handler)
